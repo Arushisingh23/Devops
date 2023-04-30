@@ -1,41 +1,54 @@
-# Pull the latest version of the Jenkins image from the Docker Hub
-FROM jenkins/jenkins:lts
+#This is a container made by user-defined docker image that contains 
+#VS code, PuTTy, Git, sonarqube, and tomcat.
 
-# Use Ubuntu as the base image
-FROM ubuntu:latest
+# Start with a base image
+FROM ubuntu:20.04
 
-# Update the package list and install Git
-RUN apt-get update
-RUN apt-get install -y wget
-RUN apt-get install -y git
-RUN apt-get install -y putty
-# install java and sonarcube
-RUN apt-get install -y curl \
-    && apt-get install -y unzip \
-    && apt-get install -y openjdk-11-jre-headless \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependancies
+RUN apt-get update && apt-get install -y \
+        curl \
+        wget \
+        unzip
 
-# Set the environment variables
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+# Install PuTTY
+RUN apt-get update && apt-get install -y putty
 
-# Download and extract SonarQube
-RUN curl -o sonarqube.zip -LJO https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-8.4.2.36762.zip \
-    && unzip sonarqube.zip \
-    && mv sonarqube-8.4.2.36762 /opt/sonarqube \
-    && rm sonarqube.zip
+# Install Git
+RUN apt-get update && apt-get install -y git
 
-# Set the environment variables
-ENV SONARQUBE_HOME /opt/sonarqube
+RUN apt-get update && apt-get install -y gnupg wget unzip openjdk-11-jdk
+RUN wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-8.9.2.46101.zip && \
+    unzip sonarqube-8.9.2.46101.zip && \
+    mv sonarqube-8.9.2.46101 /opt/sonarqube
+EXPOSE 9090
 
-# Set the working directory
-WORKDIR $SONARQUBE_HOME/data
 
-# Expose port 9000 for the SonarQube web interface
-EXPOSE 9000
+# Install Tomcat
+RUN apt-get -y update
+RUN apt-get -y install openjdk-8-jdk wget
+RUN apt-get -y install curl
+RUN mkdir /usr/local/tomcat
+RUN wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.52/bin/apache-tomcat-9.0.52.tar.gz
+RUN tar xvfz apache-tomcat-9.0.52.tar.gz
+RUN mv apache-tomcat-9.0.52/* /usr/local/tomcat
+EXPOSE 8080
 
-# Set the working directory
-WORKDIR /app
+#VSCODE
+RUN apt-get update \
+    && apt-get install -y curl \
+    && curl -fsSL https://code-server.dev/install.sh | sh
 
-# Specify the command to run when the container starts
-CMD ["bash"]
+EXPOSE 10000
+
+# Set the command to run when the container starts
+# CMD ["/usr/local/tomcat/bin/catalina.sh", "run"]
+# CMD /opt/sonarqube/bin/linux-x86-64/sonar.sh start && code-server --bind-addr 0.0.0.0:10000 . && /usr/local/tomcat/bin/catalina.sh run
+# CMD ["/bin/bash", "-c", "code-server --bind-addr 0.0.0.0:10000 . & /usr/local/tomcat/bin/catalina.sh run"]
+# CMD ["/bin/bash", "-c", "/opt/sonarqube/bin/linux-x86-64/sonar.sh start && code-server --bind-addr 0.0.0.0:10000 . && /usr/local/tomcat/bin/catalina.sh run"]
+# Copy shell script
+COPY start_services.sh /start_services.sh
+
+# Make shell script executable
+RUN chmod +x /start_services.sh
+# Run shell script as CMD
+CMD ["/bin/bash", "-c", "/start_services.sh"]
